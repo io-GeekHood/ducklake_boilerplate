@@ -1,4 +1,4 @@
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +13,12 @@ class MinioSettings(BaseSettings):
     use_ssl: bool = False
     region: str = "us-east-1"
     bucket_name: str = Field(...)
+
+    @computed_field
+    @property
+    def endpoint_url(self) -> str:
+        protocol = "https" if self.use_ssl else "http"
+        return f"{protocol}://{self.endpoint}"
 
 
 class PostgresSettings(BaseSettings):

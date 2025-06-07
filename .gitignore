@@ -178,3 +178,7 @@ cython_debug/
 .archive
 
 .data
+
+.dev
+
+.production_envs
