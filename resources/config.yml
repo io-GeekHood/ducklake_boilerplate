@@ -1,0 +1,30 @@
+SRC:
+  catalog:
+    host: 192.168.88.145
+    port: 5432
+    database: data.bimebazar
+    username: data.bimebazar
+    password: 5up3r53CUR3D
+
+  storage:
+    host: 127.0.0.1
+    port: 9000
+    scope: test
+    secure: false
+    region: us-east-1
+    style: path
+    access_key: internal
+    secret: '123412341234'
+
+
+DEST:
+  type: "s3"
+  target:
+    host: 192.168.88.113
+    port: 30904
+    scope: flowtrack
+    secure: false
+    region: us-east-1
+    style: path
+    access_key: minio-data
+    secret: AoaMBaE8ORoGC05cxVg

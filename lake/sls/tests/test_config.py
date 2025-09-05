@@ -26,9 +26,7 @@ class TestMinioSettings:
         monkeypatch.setenv("MINIO_SECRET_KEY", "testsecretkey")
         monkeypatch.setenv("MINIO_USE_SSL", "true")
         monkeypatch.setenv("MINIO_REGION", "eu-central-1")
-
         settings = MinioSettings()
-
         assert settings.endpoint == "minio.example.com:9000"
         assert settings.access_key.get_secret_value() == "testaccesskey"
         assert settings.secret_key.get_secret_value() == "testsecretkey"
@@ -87,9 +85,7 @@ class TestPostgresSettings:
         monkeypatch.setenv("POSTGRES_USER", "defaultuser")
         monkeypatch.setenv("POSTGRES_PASSWORD", "defaultpass")
         monkeypatch.setenv("POSTGRES_DBNAME", "defaultdb")
-
         settings = PostgresSettings()
-
         assert settings.port == 5432  # Default from your class definition
 
     def test_port_type_coercion(self, monkeypatch):
@@ -100,7 +96,6 @@ class TestPostgresSettings:
         monkeypatch.setenv("POSTGRES_USER", "testuser")
         monkeypatch.setenv("POSTGRES_PASSWORD", "testpassword")
         monkeypatch.setenv("POSTGRES_DBNAME", "testdb")
-
         settings = PostgresSettings()
         assert settings.port == 5444
         assert isinstance(settings.port, int)

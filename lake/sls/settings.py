@@ -1,0 +1,50 @@
+from pydantic import Field, SecretStr, computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class MinioSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="MINIO_", extra="ignore", env_file="resources/.env"
+    )
+
+    endpoint: str = Field(..., description="e.g., '127.0.0.1:9000'")
+    access_key: SecretStr = Field(...)
+    secret_key: SecretStr = Field(...)
+    use_ssl: bool = False
+    region: str = "us-east-1"
+    bucket_name: str = Field(...)
+
+    @computed_field
+    @property
+    def endpoint_url(self) -> str:
+        protocol = "https" if self.use_ssl else "http"
+        return f"{protocol}://{self.endpoint}"
+
+class SrcMinioSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="SRC_MINIO_", extra="ignore", env_file="resources/.env"
+    )
+
+    endpoint: str = Field(..., description="e.g., '127.0.0.1:9000'")
+    access_key: SecretStr = Field(...)
+    secret_key: SecretStr = Field(...)
+    use_ssl: bool = False
+    region: str = "us-east-1"
+    bucket_name: str = Field(...)
+
+    @computed_field
+    @property
+    def endpoint_url(self) -> str:
+        protocol = "https" if self.use_ssl else "http"
+        return f"{protocol}://{self.endpoint}"
+
+class PostgresSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="POSTGRES_", extra="ignore", env_file="resources/.env"
+    )
+
+    host: str = Field(...)
+    port: int = Field(5432)
+    user: str = Field(...)
+    password: SecretStr = Field(...)
+    dbname: str = Field(...)
