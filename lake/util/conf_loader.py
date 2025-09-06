@@ -8,6 +8,7 @@ class PgCnn(BaseModel):
     username: SecretStr = ""
     password: SecretStr = ""
     database: str = "postgres"
+    lake_alias: str = "lake"
     @computed_field
     @property
     def url(self) -> str:
@@ -34,20 +35,32 @@ class StorageCnn(BaseModel):
         if self.style == 'vhs':
             return f"{protocol}://{self.scope}.{self.host}:{self.port}"
         return f"{protocol}://{self.host}:{self.port}/{self.scope}"
-    # @computed_field
-    # @property
-    # def aws_url(self) -> str:
-    #     if self.style == 'vhs':
-    #         return f"https://{self.access_key}:{self.secret}@{self.scope}.s3.{self.region}.amazonaws.com"
-    #     return f"https://{self.access_key}:{self.secret}@s3.{self.region}.amazonaws.com/{self.scope}"
+    @computed_field
+    @property
+    def aws_url(self) -> str:
+        if self.style == 'vhs':
+            return f"https://{self.access_key}:{self.secret}@{self.scope}.s3.{self.region}.amazonaws.com"
+        return f"https://{self.access_key}:{self.secret}@s3.{self.region}.amazonaws.com/{self.scope}"
     
+class BrokerCnn(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 5432
+    ingest_topics: list = []
+    ingest_table: str
+    group_id: str = ""
+    @computed_field
+    @property
+    def url(self) -> str:
+        return f"{self.host}:{self.port}"
+    
+
 class SRC(BaseModel):
     catalog: PgCnn
     storage: StorageCnn
 
 class DEST(BaseModel):
-    type: str
-    target: StorageCnn
+    stream: BrokerCnn
+    storage: StorageCnn
 
 class Configs(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)

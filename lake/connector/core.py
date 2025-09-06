@@ -1,34 +1,37 @@
 import sys
 import boto3
 import duckdb
-import logging
 import psycopg2
 from typing import List, Optional
-from lake.sls.settings import MinioSettings,SrcMinioSettings, PostgresSettings
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from botocore.exceptions import ClientError, ConnectTimeoutError
 from botocore.config import Config
 from lake.util.conf_loader import Configs
 import time
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
-
-
+from kafka import KafkaConsumer, TopicPartition
+from json import loads
+from lake.util.logger import logger
+from duckdb import CatalogException
 class DuckLakeManager(Configs):
     pg_catalog:str = None
     s3_source_create_command: str = None
+    healthy: bool = None
     duckdb_connection: duckdb.DuckDBPyConnection = None
     def __init__(self,config_path):
         super(DuckLakeManager,self).__init__(config_path)
-        self._connectivity_assessment()
         self.duckdb_connection = duckdb.connect()
-        print(self.pg_catalog)
-        print(self.s3_source_create_command)
-        installation_status = self.__install_duckdb_extensions()
-        if installation_status is not None:
-            sys.exit(1)
-
-        self.__initialize_ducklake()
+        try:
+            self.duckdb_connection.execute(f"use {self.SRC.catalog.lake_alias};")
+            result = self.duckdb_connection.execute("SHOW TABLES").fetchall()
+            if len(result) == 0:
+               raise CatalogException
+        except CatalogException:
+            logger.warning(f"Catalog Not found! (Creating {self.SRC.catalog.lake_alias}...)")
+            self._connectivity_assessment()
+            installation_status = self.__install_duckdb_extensions()
+            if installation_status is not None:
+                sys.exit(1)
+            
 
     def _connectivity_assessment(self):
         s3_object = self.SRC.storage
@@ -49,19 +52,19 @@ class DuckLakeManager(Configs):
         try:
             bucket_data = s3_client.head_bucket(Bucket=s3_object.scope)
             assert bucket_data['ResponseMetadata']['HTTPStatusCode'] == 200
-            logger.error(f'bucket {s3_object.scope} already exist (no action needed)')
+            logger.debug(f'bucket {s3_object.scope} already exist (no action needed)')
         except ClientError as e:
             logger.error(f'cannot find bucket with name {s3_object.scope} (creating...)')
             try:
                 s3_client.create_bucket(Bucket=s3_object.scope)
             except ClientError as e:
                 logger.error(f'there is a problem with defined bucket name or \
-                                client doesnt seem to have right permissions to create new bucket\
-                                -> {s3_object.scope}')
+                             client doesnt seem to have right permissions to create new bucket\
+                                -> {s3_object.scope} {e}')
                 time.sleep(3)
                 self._connectivity_assessment()
         self.s3_source_create_command = (
-            "create secret storage (type s3, "
+            "create secret ds (type s3, "
             + f"key_id '{s3_object.access_key.get_secret_value()}', "
             + f"secret '{s3_object.secret.get_secret_value()}', "
             + f"endpoint '{s3_object.host}:{s3_object.port}', "
@@ -73,7 +76,7 @@ class DuckLakeManager(Configs):
         logger.info("s3 connectivity test successfull")
         pg_conn = None
         try:
-            logger.info(f"checking connectivity for catalog relational storage")
+            logger.info(f"checking connectivity for catalog data-store({pg_object})")
             pg_conn = psycopg2.connect(
                 host=pg_object.host,
                 port=pg_object.port,
@@ -116,12 +119,12 @@ class DuckLakeManager(Configs):
     def __install_duckdb_extensions(
         self, extensions: List = ["ducklake", "postgres", "httpfs"]
     ) -> Optional[Exception]:
+        self.duckdb_connection.execute(self.s3_source_create_command)
         for extension_name in extensions:
             try:
                 self.duckdb_connection.sql(f"INSTALL {extension_name};")
                 self.duckdb_connection.sql(f"LOAD {extension_name};")
                 logger.info(f"{extension_name} installed and loaded successfully.")
-
             except duckdb.HTTPException as e:
                 logger.error(
                     f"extension {extension_name} not found or you might have connectivity issues:\n{e}"
@@ -133,26 +136,11 @@ class DuckLakeManager(Configs):
                 )
                 return e
 
-    # TODO: add proper error handling to assert database and s3 bucket conditions
-    def __initialize_ducklake(self):
-        setup_ducklake_command = (
-            f"ATTACH 'ducklake:{self.pg_catalog}' AS lake (DATA_PATH 's3://test');"
+    def stream_mode(self):
+        consumer = KafkaConsumer('bank-customer-events',
+            bootstrap_servers=['localhost:9092'],
+            # auto_offset_reset='earliest',
+            value_deserializer=lambda m: loads(m.decode('ascii'))
         )
-        if self.DEST.
-        data = (
-            "create secret datas (type s3, "
-            + f"key_id '{self.DEST.target.access_key.get_secret_value()}', "
-            + f"secret '{self.DEST.target.secret.get_secret_value()}', "
-            + f"endpoint '{self.DEST.target.host}:{self.DEST.target.port}', "
-            + f"scope 's3://{self.DEST.target.scope}',"
-            + f"use_ssl {self.DEST.target.secure}, "
-            + f"url_style '{self.DEST.target.style}'"
-            ");"
-        )
-        logger.debug(setup_ducklake_command)
-        self.duckdb_connection.execute(self.s3_source_create_command)
-        self.duckdb_connection.execute(data)
-        self.duckdb_connection.execute(setup_ducklake_command)
-        self.duckdb_connection.execute("use lake;")
-        config_params = "SET http_timeout=100;"
-        logger.info("ducklake: 'lake' initialized successfully.")
+        for msg in consumer:
+            print(msg)
