@@ -71,44 +71,45 @@ The config file (resources/config.yml)
 
 | There are two top-level keys: DEST and SRC. 
  
-##### $`\textcolor{yellow}{\text{DEST = where your lake “lives”}}`$  
+##### $`\textcolor{yellow}{\text{DEST => where your lake “lives”}}`$  
 DEST has two parts: catalog and storage. 
 
-    catalog 
-        This is your relational database that stores the lake’s catalog tables (schemas, table definitions, etc.).
-        Default: Postgres.
-        Docs:
-            What is a catalog DB: https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database 
-            Catalog tables spec: https://ducklake.select/docs/stable/specification/tables/overview 
-             
+
+## catalog
+| This is your relational database that stores the lake’s [catalog tables](https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database) \
+including (schemas, table definitions, etc..)  for more information read \
+[catalog tables spec](https://ducklake.select/docs/stable/specification/tables/overview)
+
+
          
 
-    storage 
-        This is where the actual data files go (the “data-path” of your lake).
-        Default: MinIO (S3-compatible).
-        Docs:
-            Choosing storage: https://ducklake.select/docs/stable/duckdb/usage/choosing_storage 
-            Connecting to data-path: https://ducklake.select/docs/stable/duckdb/usage/connecting 
-             
-         
+## storage 
+This is where the actual data files from [compatible sources](https://ducklake.select/docs/stable/duckdb/usage/choosing_storage) (this is the “data-path” of your lake). \n
+ducklake requires you to specify a data location while
+[Connecting to data-path](https://ducklake.select/docs/stable/duckdb/usage/connecting).
+
      
+In short:
 
-In short: 
+* catalog = metadata database (e.g., Postgres)
+* storage = object store for data (e.g., MinIO/S3)    
 
-    catalog = metadata database (e.g., Postgres)
-    storage = object store for data (e.g., MinIO/S3)
-     
 
-##### $`\textcolor{yellow}{\text{SRC = what you’re reading from}}`$  
+##### $`\textcolor{yellow}{\text{SRC => what you’re reading from}}`$  
 
 SRC defines the upstream source you want to pull from to build the lake. You can choose one (or more) of: 
 
-    stream (e.g., Kafka)
-    storage (e.g., MinIO/S3 full of parquet)
-    postgres (a relational DB)
+* stream (e.g., Kafka)
+* storage (e.g., MinIO/S3 full of parquet)
+* postgres (a relational DB)
     
 
 Pick what fits your use case. Comment out what you don’t need. 
+
+
+![hld](resources/asset/lake.png)
+
+
 ## Example config (just a sketch)
 
 ```yml
@@ -159,8 +160,6 @@ $`\textcolor{green}{\text{Note}}`$ \
     You don’t have to fill all of SRC. Use the one(s) you need.
     Keep secrets out of git. Environment variables or a secrets manager are your friends.
      
-
-![hld](resources/asset/lake.png)
 
 
 next navigate to the root of project:
