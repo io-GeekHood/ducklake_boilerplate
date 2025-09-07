@@ -84,7 +84,7 @@ including (schemas, table definitions, etc..)  for more information read \
          
 
 ## storage 
-This is where the actual data files from [compatible sources](https://ducklake.select/docs/stable/duckdb/usage/choosing_storage) (this is the “data-path” of your lake). \n
+This is where the actual data files from [compatible sources](https://ducklake.select/docs/stable/duckdb/usage/choosing_storage) will go (the “data-path” of your lake). \
 ducklake requires you to specify a data location while
 [Connecting to data-path](https://ducklake.select/docs/stable/duckdb/usage/connecting).
 
