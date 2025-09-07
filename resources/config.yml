@@ -1,22 +1,22 @@
 SRC:
   stream:
-    host: 192.168.88.208
+    host: 127.0.0.1
     port: 9092
     ingest_topics: 
-      - validator_agent
+      - sample_topic
     ingest_table: kafka_test
     group_id: ducklake
     batch_size: 10000
 
   storage:
-    host: 192.168.88.113
-    port: 30904
-    scope: flowtrack
+    host: another.s3fs.host
+    port: 9000
+    scope: big_parquets_bucket
     secure: false
     region: us-east-1
     style: path
-    access_key: minio-data
-    secret: AoaMBaE8ORoGC05cxVg
+    access_key: minio
+    secret: password
 
 
 DEST:
