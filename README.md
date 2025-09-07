@@ -187,13 +187,23 @@ Aliases: -s for --src, -c for --config
 
 This initializes and attaches the runtime to the Kafka batch ingestion consumer defined in your config. 
 
-To inspect ingested data, run a query: 
+| To inspect ingested data, run a query: 
 
 ```bash
 lake exec --cmd 'SELECT * FROM kafka_test' --config resources/config.yml 
 Alias: -x for --cmd 
 ```
+* Note: kafka_test should match the ingest_table value in your config file. 
 
-Note: kafka_test should match the ingest_table value in your config file. 
+
+| To use timetravel you can run:
+```bash
+lake travel --config resources/config.tmp.yml --src s3 --table my_custom_table --condition tables_deleted_from
+Aliases: -x for --condition , -t for table
+```
+this will return table content in previouse state of last deletion transaction you can also choose 'tables_inserted_into' as condition
+
+
+
 
 Project status: This project is under active development. Please report bugs or issues this repo or hashempourian.a@gmail.com.

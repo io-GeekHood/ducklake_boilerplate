@@ -5,11 +5,11 @@ import psycopg2
 from typing import List, Optional
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from botocore.exceptions import ClientError, ConnectTimeoutError
-from botocore.config import Config
 from lake.util.conf_loader import Configs
 import time
 from lake.util.logger import logger
 from duckdb import CatalogException
+from typing import Literal, cast,Union
 class DuckLakeManager(Configs):
     pg_catalog:str = None
     s3_source_create_command: str = None
@@ -182,3 +182,44 @@ class DuckLakeManager(Configs):
                     f"during installation of {extension_name} an unexpected error has occoured: {e}"
                 )
                 return e
+
+    def retrive_snapshot(self,commit_type:Literal['tables_inserted_into','tables_deleted_from'],table_name:str):
+        """Use time travel to investigate what happened."""
+        print("Investigation: What Happened?")
+
+        snapshots = self.duckdb_connection.execute(
+            """
+            SELECT snapshot_id, snapshot_time, changes
+            FROM ducklake_snapshots('lake')
+            ORDER BY snapshot_id DESC
+            LIMIT 10;
+        """
+        ).fetchall()
+        
+        logger.info("\n🔍 Analyzing recent changes...")
+
+        # Find the deletion snapshot
+        deletion_snapshot = None
+        previous_snapshot = None
+        # tables_inserted_into
+
+        for i, (snap_id, snap_time, changes) in enumerate(snapshots):
+            print(snap_id,snap_time,list(changes.keys()))
+            if commit_type in list(changes.keys()):
+                target_snapshot = snap_id
+                if i + 1 < len(snapshots):
+                    previous_snapshot = snapshots[i + 1][0]
+                break
+
+        if target_snapshot:
+            logger.warning(f"\n⚠️  Found deletion in snapshot {deletion_snapshot}")
+            logger.info(f"   Previous good snapshot: {previous_snapshot}")
+            if previous_snapshot:
+                logger.info("\n📊 Data that was deleted:")
+                prev_data_state = self.duckdb_connection.execute(
+                    f"""
+                    SELECT * FROM {table_name} AT (VERSION => {previous_snapshot})
+                """
+                ).fetchdf()
+                print(prev_data_state)
+        return prev_data_state
