@@ -50,6 +50,14 @@ def main():
         default='resources/config.yml',
         help="path to config file included SRC/DEST"
     )
+    parser_exec.add_argument(
+        "--src",
+        "-s",
+        type=str,
+        required=True,
+        choices=['kafka','s3','postgres'],
+        help="the source you want this runtime to read from..."
+    )
     parser_connect.add_argument(
         "--src",
         "-s",
@@ -72,7 +80,7 @@ def main():
         if args.src == 'kafka':
             cnn.attach()
     elif args.command == 'exec':
-        cnn = connect('postgres',args.config)
+        cnn = connect(args.src,args.config)
         output = cnn.exec(args.cmd).df()
         print(output)
        
