@@ -1,4 +1,5 @@
-# DuckLake (SDK)
+# DuckLake (SDK) 🧰 
+
 A super quick, no-nonsense guide to wiring up your lake.
 
 basic infrastructure for a datalake operating on top of (ducklake,duckdb,postgress,kafka,minio[s3])
@@ -68,9 +69,9 @@ That’s it. The tooling reads this config and does the rest.
 
 The config file (resources/config.yml) 
 
-There are two top-level keys: DEST and SRC. 
-DEST = where your lake “lives” 
-
+| There are two top-level keys: DEST and SRC. 
+ 
+##### $`\textcolor{yellow}{\text{DEST = where your lake “lives”}}`$  
 DEST has two parts: catalog and storage. 
 
     catalog 
@@ -98,7 +99,7 @@ In short:
     storage = object store for data (e.g., MinIO/S3)
      
 
-SRC = what you’re reading from 
+##### $`\textcolor{yellow}{\text{SRC = what you’re reading from}}`$  
 
 SRC defines the upstream source you want to pull from to build the lake. You can choose one (or more) of: 
 
@@ -113,22 +114,29 @@ Pick what fits your use case. Comment out what you don’t need.
 ```yml
 SRC:
   stream:
-    host: 127.0.0.1
-    port: 9092
-    ingest_topics: # the topic names to ingest data from
+    host: 127.0.0.1 # kafka bootstrap host that you want to ingest
+    port: 9092 # kafka broker port
+    ingest_topics: # the topic names to ingest data from (multiple)
       - test_topic 
     ingest_table: kafka_src # the name of table where observed messages from topic will be written in
     group_id: ducklake # consumer group name
   storage:
-    host: 127.0.0.1
-    port: 9000
+    host: 127.0.0.1 # data included s3fs host that you want to read from
+    port: 9000 # data included s3fs port
     scope: bucket_name # the bucket you will have access to by defining s3://{scope}/my_parquet_files_2025-05-*.parquet
-    secure: false
-    region: us-east-1
+    secure: false # http=false | https=true
+    region: us-east-1 # matters only if you choose style=vhs
     style: path # you can choose either vhs(for aws) or path 
-    access_key: minio 
-    secret: password
-DEST:
+    access_key: minio # s3fs access key
+    secret: password # s3fs secret key
+  postgres:
+    host: 127.0.0.1 # data included postgres that you want to read from
+    port: 5432 # data included postgres port
+    database: postgres # target database to invoke queries on
+    username: pgadmin # postgres username
+    password: password # postgres password
+    lake_alias: lake # alias to call when you want to connect your pg database (using {lake_alias}; select * from ...;) 
+DEST: # all fields similar to SRC
   catalog:
     host: 127.0.0.1
     port: 5432
@@ -146,7 +154,8 @@ DEST:
     access_key: minio
     secret: password
 ```
-Notes: 
+ 
+$`\textcolor{green}{\text{Note}}`$ \
     You don’t have to fill all of SRC. Use the one(s) you need.
     Keep secrets out of git. Environment variables or a secrets manager are your friends.
      
@@ -189,4 +198,3 @@ Alias: -x for --cmd
 Note: kafka_test should match the ingest_table value in your config file. 
 
 Project status: This project is under active development. Please report bugs or issues this repo or hashempourian.a@gmail.com.
- 
