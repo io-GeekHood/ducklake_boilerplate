@@ -32,53 +32,69 @@ class DuckLakeManager(Configs):
                 sys.exit(1)
     
     def _get_dest_storage_secret(self):
-        return (
-            "create secret ds (type s3, "
-            + f"key_id '{self.DEST.storage.access_key.get_secret_value()}', "
-            + f"secret '{self.DEST.storage.secret.get_secret_value()}', "
-            + f"endpoint '{self.DEST.storage.host}:{self.DEST.storage.port}', "
-            + f"scope 's3://{self.DEST.storage.scope}',"
-            + f"use_ssl {self.DEST.storage.secure}, "
-            + f"url_style '{self.DEST.storage.style}'"
-            ");"
-        )
+        try:
+            return (
+                "create secret ds (type s3, "
+                + f"key_id '{self.DEST.storage.access_key.get_secret_value()}', "
+                + f"secret '{self.DEST.storage.secret.get_secret_value()}', "
+                + f"endpoint '{self.DEST.storage.host}:{self.DEST.storage.port}', "
+                + f"scope 's3://{self.DEST.storage.scope}',"
+                + f"use_ssl {self.DEST.storage.secure}, "
+                + f"url_style '{self.DEST.storage.style}'"
+                ");"
+            )
+        except:
+            logger.error(f"failed to initiate catalog on database!")
+            return './resources/asset/tmp.db'
     def _get_dest_catalog_definition(self):
-        return (
-            "postgres:"
-            + f"dbname={self.DEST.catalog.database} "
-            + f"host={self.DEST.catalog.host} "
-            + f"port={self.DEST.catalog.port} "
-            + f"user={self.DEST.catalog.username.get_secret_value()} "
-            + f"password={self.DEST.catalog.password.get_secret_value()} "
-        )
-    def _get_dest_catalog_secret(self):
-        return (
-			"create secret catalog (type postgres, "
-			+ f"host '{self.DEST.catalog.host}', "
-			+ f"port {self.DEST.catalog.port}  , "
-			+ f"database '{self.DEST.catalog.database}', "
-			+ f"user '{self.DEST.catalog.username.get_secret_value()}',"
-			+ f"passweord {self.DEST.catalog.password.get_secret_value()}, "
-			+ f"url_style '{self.SRC.storage.style}'"
-			");"
-		)
-        # ATTACH '' AS postgres_db_one (TYPE postgres, SECRET postgres_secret_one);
+        try:
+            return (
+                "postgres:"
+                + f"dbname={self.DEST.catalog.database} "
+                + f"host={self.DEST.catalog.host} "
+                + f"port={self.DEST.catalog.port} "
+                + f"user={self.DEST.catalog.username.get_secret_value()} "
+                + f"password={self.DEST.catalog.password.get_secret_value()} "
+            )
+        except:
+            logger.error(f"failed to initiate catalog on database!")
+            return ''
+    def _get_src_pg_secret(self):
+        try:
+            return (
+                "create secret src_pg (type postgres, "
+                + f"host '{self.SRC.postgres.host}', "
+                + f"port {self.SRC.postgres.port}  , "
+                + f"database '{self.SRC.postgres.database}', "
+                + f"user '{self.SRC.postgres.username.get_secret_value()}',"
+                + f"password '{self.SRC.postgres.password.get_secret_value()}' "
+                + ");"
+            )
+        except:
+            logger.warning(f"no src_s3 to register")
+            return 'select 1;'
     def _get_src_s3_secret(self):
-        return (
-			"create secret target (type s3, "
-			+ f"key_id '{self.SRC.storage.access_key.get_secret_value()}', "
-			+ f"secret '{self.SRC.storage.secret.get_secret_value()}', "
-			+ f"endpoint '{self.SRC.storage.host}:{self.SRC.storage.port}', "
-			+ f"scope 's3://{self.SRC.storage.scope}',"
-			+ f"use_ssl {self.SRC.storage.secure}, "
-			+ f"url_style '{self.SRC.storage.style}'"
-			");"
-		)
+        try:
+            return (
+                "create secret src_s3 (type s3, "
+                + f"key_id '{self.SRC.storage.access_key.get_secret_value()}', "
+                + f"secret '{self.SRC.storage.secret.get_secret_value()}', "
+                + f"endpoint '{self.SRC.storage.host}:{self.SRC.storage.port}', "
+                + f"scope 's3://{self.SRC.storage.scope}',"
+                + f"use_ssl {self.SRC.storage.secure}, "
+                + f"url_style '{self.SRC.storage.style}'"
+                ");"
+            )
+        except:
+            logger.warning(f"no src_s3 to register")
+            return 'select 1;'
+
     def _attach(self):
         setup_ducklake_command = (
             f"ATTACH 'ducklake:{self._get_dest_catalog_definition()}' AS {self.DEST.catalog.lake_alias} (DATA_PATH 's3://{self.DEST.storage.scope}');"
         )
         self.duckdb_connection.execute(self._get_dest_storage_secret())
+        self.duckdb_connection.execute(self._get_src_pg_secret())
         self.duckdb_connection.execute(self._get_src_s3_secret())
         self.duckdb_connection.execute(setup_ducklake_command)
         self.duckdb_connection.execute(f"use {self.DEST.catalog.lake_alias};")
