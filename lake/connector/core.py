@@ -8,8 +8,6 @@ from botocore.exceptions import ClientError, ConnectTimeoutError
 from botocore.config import Config
 from lake.util.conf_loader import Configs
 import time
-from kafka import KafkaConsumer, TopicPartition
-from json import loads
 from lake.util.logger import logger
 from duckdb import CatalogException
 class DuckLakeManager(Configs):
@@ -21,22 +19,74 @@ class DuckLakeManager(Configs):
         super(DuckLakeManager,self).__init__(config_path)
         self.duckdb_connection = duckdb.connect()
         try:
-            self.duckdb_connection.execute(f"use {self.SRC.catalog.lake_alias};")
+            self._attach()
             result = self.duckdb_connection.execute("SHOW TABLES").fetchall()
             if len(result) == 0:
                raise CatalogException
+            logger.info(f"attached existing ducklake {self.DEST.catalog.lake_alias} with {len(result)} tables")
         except CatalogException:
-            logger.warning(f"Catalog Not found! (Creating {self.SRC.catalog.lake_alias}...)")
+            logger.warning(f"catalog Not found! (Creating {self.DEST.catalog.lake_alias}...)")
             self._connectivity_assessment()
             installation_status = self.__install_duckdb_extensions()
             if installation_status is not None:
                 sys.exit(1)
-            
+    
+    def _get_dest_storage_secret(self):
+        return (
+            "create secret ds (type s3, "
+            + f"key_id '{self.DEST.storage.access_key.get_secret_value()}', "
+            + f"secret '{self.DEST.storage.secret.get_secret_value()}', "
+            + f"endpoint '{self.DEST.storage.host}:{self.DEST.storage.port}', "
+            + f"scope 's3://{self.DEST.storage.scope}',"
+            + f"use_ssl {self.DEST.storage.secure}, "
+            + f"url_style '{self.DEST.storage.style}'"
+            ");"
+        )
+    def _get_dest_catalog_definition(self):
+        return (
+            "postgres:"
+            + f"dbname={self.DEST.catalog.database} "
+            + f"host={self.DEST.catalog.host} "
+            + f"port={self.DEST.catalog.port} "
+            + f"user={self.DEST.catalog.username.get_secret_value()} "
+            + f"password={self.DEST.catalog.password.get_secret_value()} "
+        )
+    def _get_dest_catalog_secret(self):
+        return (
+			"create secret catalog (type postgres, "
+			+ f"host '{self.DEST.catalog.host}', "
+			+ f"port {self.DEST.catalog.port}  , "
+			+ f"database '{self.DEST.catalog.database}', "
+			+ f"user '{self.DEST.catalog.username.get_secret_value()}',"
+			+ f"passweord {self.DEST.catalog.password.get_secret_value()}, "
+			+ f"url_style '{self.SRC.storage.style}'"
+			");"
+		)
+        # ATTACH '' AS postgres_db_one (TYPE postgres, SECRET postgres_secret_one);
+    def _get_src_s3_secret(self):
+        return (
+			"create secret target (type s3, "
+			+ f"key_id '{self.SRC.storage.access_key.get_secret_value()}', "
+			+ f"secret '{self.SRC.storage.secret.get_secret_value()}', "
+			+ f"endpoint '{self.SRC.storage.host}:{self.SRC.storage.port}', "
+			+ f"scope 's3://{self.SRC.storage.scope}',"
+			+ f"use_ssl {self.SRC.storage.secure}, "
+			+ f"url_style '{self.SRC.storage.style}'"
+			");"
+		)
+    def _attach(self):
+        setup_ducklake_command = (
+            f"ATTACH 'ducklake:{self._get_dest_catalog_definition()}' AS {self.DEST.catalog.lake_alias} (DATA_PATH 's3://{self.DEST.storage.scope}');"
+        )
+        self.duckdb_connection.execute(self._get_dest_storage_secret())
+        self.duckdb_connection.execute(self._get_src_s3_secret())
+        self.duckdb_connection.execute(setup_ducklake_command)
+        self.duckdb_connection.execute(f"use {self.DEST.catalog.lake_alias};")
+
 
     def _connectivity_assessment(self):
-        s3_object = self.SRC.storage
-
-        pg_object = self.SRC.catalog
+        s3_object = self.DEST.storage
+        pg_object = self.DEST.catalog
         try:
             logger.info(f"checking connectivity for source s3")
             s3_client = boto3.client(
@@ -63,16 +113,6 @@ class DuckLakeManager(Configs):
                                 -> {s3_object.scope} {e}')
                 time.sleep(3)
                 self._connectivity_assessment()
-        self.s3_source_create_command = (
-            "create secret ds (type s3, "
-            + f"key_id '{s3_object.access_key.get_secret_value()}', "
-            + f"secret '{s3_object.secret.get_secret_value()}', "
-            + f"endpoint '{s3_object.host}:{s3_object.port}', "
-            + f"scope 's3://{s3_object.scope}',"
-            + f"use_ssl {s3_object.secure}, "
-            + f"url_style '{s3_object.style}'"
-            ");"
-        )
         logger.info("s3 connectivity test successfull")
         pg_conn = None
         try:
@@ -107,19 +147,10 @@ class DuckLakeManager(Configs):
             if pg_conn:
                 pg_conn.close()
         logger.info("catalog connectivity test successfull")
-        self.pg_catalog = (
-            "postgres:"
-            + f"dbname={pg_object.database} "
-            + f"host={pg_object.host} "
-            + f"port={pg_object.port} "
-            + f"user={pg_object.username.get_secret_value()} "
-            + f"password={pg_object.password.get_secret_value()} "
-        )
 
     def __install_duckdb_extensions(
         self, extensions: List = ["ducklake", "postgres", "httpfs"]
     ) -> Optional[Exception]:
-        self.duckdb_connection.execute(self.s3_source_create_command)
         for extension_name in extensions:
             try:
                 self.duckdb_connection.sql(f"INSTALL {extension_name};")
@@ -135,12 +166,3 @@ class DuckLakeManager(Configs):
                     f"during installation of {extension_name} an unexpected error has occoured: {e}"
                 )
                 return e
-
-    def stream_mode(self):
-        consumer = KafkaConsumer('bank-customer-events',
-            bootstrap_servers=['localhost:9092'],
-            # auto_offset_reset='earliest',
-            value_deserializer=lambda m: loads(m.decode('ascii'))
-        )
-        for msg in consumer:
-            print(msg)

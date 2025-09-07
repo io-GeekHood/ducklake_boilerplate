@@ -1,4 +1,25 @@
 SRC:
+  stream:
+    host: 192.168.88.208
+    port: 9092
+    ingest_topics: 
+      - validator_agent
+    ingest_table: kafka_test
+    group_id: ducklake
+    batch_size: 10000
+
+  storage:
+    host: 192.168.88.113
+    port: 30904
+    scope: flowtrack
+    secure: false
+    region: us-east-1
+    style: path
+    access_key: minio-data
+    secret: AoaMBaE8ORoGC05cxVg
+
+
+DEST:
   catalog:
     host: 127.0.0.1
     port: 5432
@@ -6,26 +27,7 @@ SRC:
     username: pgadmin
     password: password
     lake_alias: lake
-  storage:
-    host: 127.0.0.1
-    port: 9000
-    scope: test
-    secure: false
-    region: us-east-1
-    style: path
-    access_key: minio
-    secret: password
 
-
-
-DEST:
-  stream:
-    host: 127.0.0.1
-    port: 9092
-    ingest_topics: 
-      - test_topic
-    ingest_table: kafka_src
-    group_id: ducklake
   storage:
     host: 127.0.0.1
     port: 9000
@@ -35,3 +37,8 @@ DEST:
     style: path
     access_key: minio
     secret: password
+
+
+
+
+

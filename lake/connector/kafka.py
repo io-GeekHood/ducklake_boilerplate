@@ -4,6 +4,8 @@ from duckdb import DuckDBPyConnection
 from confluent_kafka import Consumer,KafkaException,KafkaError
 from collections.abc import Generator
 import json
+import pandas as pd
+from typing import Optional
 class Connector(DuckLakeManager):
 	bootstrap_servers: str = None
 	base_config: dict = None
@@ -11,25 +13,8 @@ class Connector(DuckLakeManager):
 	_consumers: list[Consumer] = []
 	def __init__(self,config_path):
 		super(Connector,self).__init__(config_path)
-		target_secret = (
-			"create secret target (type s3, "
-			+ f"key_id '{self.DEST.storage.access_key.get_secret_value()}', "
-			+ f"secret '{self.DEST.storage.secret.get_secret_value()}', "
-			+ f"endpoint '{self.DEST.storage.host}:{self.DEST.storage.port}', "
-			+ f"scope 's3://{self.DEST.storage.scope}',"
-			+ f"use_ssl {self.DEST.storage.secure}, "
-			+ f"url_style '{self.DEST.storage.style}'"
-			");"
-		)
-		res = self.duckdb_connection.execute(target_secret)
-		logger.debug(f"TargetSecret={target_secret} RESULT {res.fetchone()}")
-		setup_ducklake_command = (
-			f"ATTACH 'ducklake:{self.pg_catalog}' AS {self.SRC.catalog.lake_alias} (DATA_PATH 's3://{self.SRC.storage.scope}');"
-		)
-		self.duckdb_connection.execute(setup_ducklake_command)
-		self.duckdb_connection.execute(f"use {self.SRC.catalog.lake_alias};")
 		"""Initialize the Kafka client."""
-		self.bootstrap_servers = self.DEST.stream.url
+		self.bootstrap_servers = self.SRC.stream.url
 		self.base_config = {"bootstrap.servers": self.bootstrap_servers}
 		self.consumer_config = {**self.base_config,
 						   "auto.offset.reset": "earliest",
@@ -39,7 +24,7 @@ class Connector(DuckLakeManager):
 						   'heartbeat.interval.ms': 600000
 						   }
 		self._consumers: list[Consumer] = []
-		logger.warning(f"initializing kafka client {self.DEST.stream.url} topics={self.DEST.stream.ingest_topics} group={self.DEST.stream.group_id}")
+		logger.warning(f"initializing kafka client {self.SRC.stream.url} topics={self.SRC.stream.ingest_topics} group={self.SRC.stream.group_id}")
 
 	@property
 	def consumers(self) -> list[Consumer]:
@@ -68,8 +53,8 @@ class Connector(DuckLakeManager):
 			consumer = Consumer({**self.consumer_config, "group.id": group})
 			self._consumers.append(consumer)
 			if consumer:
-				# consumer.subscribe(topics, on_assign=self.on_assign_seek_to_beginning)
-				consumer.subscribe(topics)
+				consumer.subscribe(topics, on_assign=self.on_assign_seek_to_beginning)
+				# consumer.subscribe(topics)
 				logger.info(f"Opened Kafka consumer to broker at {self.bootstrap_servers} listening to {topics=}")
 		except KafkaException as e:
 			logger.error(f"Failed to open consumer to broker at {self.bootstrap_servers} listening to {topics=}: {e}")
@@ -110,35 +95,49 @@ class Connector(DuckLakeManager):
 			logger.error(f"Failed to consume messages: {e}")
 		except KeyboardInterrupt:
 			logger.info("Consumer loop interrupted by user")
-	def consume_batch(self, consumer: Consumer, timeout: float = 10.0,batch_size:int=15) -> Generator[str] | None:
-		"""Continuously consume messages from Kafka."""
+	def consume_batch(
+    self,
+    consumer: Consumer,
+    timeout: float = 10.0,
+    batch_size: int = 10000
+	) -> Optional[Generator[pd.DataFrame, None, None]]:
 		if not consumer or len(self._consumers) == 0:
 			logger.error(f"Kafka consumer to broker at {self.bootstrap_servers} is not open")
 			return None
+
 		try:
 			while True:
 				message_batch = consumer.consume(num_messages=batch_size, timeout=timeout)
 				if message_batch is None:
 					continue
+
 				valid_messages = []
 				for msg in message_batch:
+					if msg is None:
+						continue
 					if msg.error():
 						if msg.error().code() == KafkaError._PARTITION_EOF:
 							continue
 						else:
 							logger.error(f"Kafka error received: {msg.error()}")
-							# raise KafkaException(msg.error())
+							continue
+
 					try:
 						loaded_msg = json.loads(msg.value())
 						valid_messages.append(loaded_msg)
 					except Exception as fail:
 						logger.critical(f"failed to collect message bytes: {msg.value()} {fail}")
 						continue
-					# consumer.commit(msg)
+					# consumer.commit(msg)  # enable if you want manual commits
+
 				if not valid_messages or len(valid_messages) < 2:
 					logger.warning("not enough messages gathered in this poll session (continue collecting...)")
 					continue
-				yield valid_messages
+
+				# Flatten nested JSON; use pd.DataFrame(valid_messages) if you don't want flattening
+				df = pd.json_normalize(valid_messages, sep='.')
+				yield df
+
 		except KafkaException as e:
 			logger.error(f"Failed to consume messages: {e}")
 		except KeyboardInterrupt:
@@ -187,14 +186,24 @@ class Connector(DuckLakeManager):
 					pg_type = self.infer_type(value)
 					columns.append(f"{key} {pg_type}")
 				columns_sql = ', '.join(columns)
-				create_statement = f"CREATE TABLE IF NOT EXISTS {self.DEST.stream.ingest_table} ({columns_sql});"
+				create_statement = f"CREATE TABLE IF NOT EXISTS {self.SRC.stream.ingest_table} ({columns_sql});"
 				table_generate_result = self.duckdb_connection.sql(create_statement)
-				print(self.duckdb_connection.table(self.DEST.stream.ingest_table).show())
+				print(self.duckdb_connection.table(self.SRC.stream.ingest_table).show())
 				logger.info(f"{create_statement} Returned -> {table_generate_result}")
 				return
 	
 	def attach(self):
-		consumer = self.open_consumer(self.DEST.stream.group_id,self.DEST.stream.ingest_topics)
+		consumer = self.open_consumer(self.SRC.stream.group_id,self.SRC.stream.ingest_topics)
+		self.template_adapter(consumer)
+		try:
+			for messages_frame in self.consume_batch(consumer,batch_size=self.SRC.stream.batch_size):
+				logger.warning(f"inserting new frame ({messages_frame.shape}) into {self.SRC.stream.ingest_table}")
+				logger.info(messages_frame)
+				self.duckdb_connection.sql(f"INSERT INTO {self.SRC.stream.ingest_table} (SELECT * FROM messages_frame)")
+		finally:
+			self.close_consumer(consumer)
+	def single_message(self,batch_size:int):
+		consumer = self.open_consumer(self.SRC.stream.group_id,self.SRC.stream.ingest_topics)
 		self.template_adapter(consumer)
 		try:
 			for message in self.consume_messages(consumer):
@@ -202,7 +211,7 @@ class Connector(DuckLakeManager):
 				keys = ', '.join(data.keys())
 				placeholders = ', '.join(['?'] * len(data)) 
 				values = tuple(data.values())
-				insert_statement = f"INSERT INTO {self.DEST.stream.ingest_table} ({keys}) VALUES ({placeholders})"
+				insert_statement = f"INSERT INTO {self.SRC.stream.ingest_table} ({keys}) VALUES ({placeholders})"
 				insert_result = self.duckdb_connection.execute(insert_statement, values)
 				logger.info(f"{insert_statement} Results-> {insert_result.fetchall()}")
 		finally:

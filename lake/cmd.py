@@ -1,14 +1,9 @@
 import argparse
 import os
 
-version = os.getenv("CLI_VERSION","v1")
-if version == "v1":
-    from lake.cli.v1 import test
-elif version == "v2":
-    # from lake.cli.v2 import test
-    exit()
-else:
-    print(f"Error importing cli version:{version} ")
+
+from lake.connector import connect
+
 
 def main():
     """
@@ -31,36 +26,55 @@ def main():
         help="Available sub-commands",
         required=True, # Ensures a subcommand is always provided
     )
-    parse_migrate = subparsers.add_parser(
-        "migrate",
-        help="run test func!.",
+
+    parser_connect = subparsers.add_parser(
+        "connect",
+        help="create simple circuite to ducklake",
     )
-    parse_migrate.add_argument(
-        "--database",
-        "-d",
+    parser_exec = subparsers.add_parser(
+        "exec",
+        help="execute a custom command on lake",
+    )
+    parser_exec.add_argument(
+        "--cmd",
+        "-x",
         type=str,
         required=True,
-        choices=['fms_db','basket_db','oms_db'],
-        help="database Name to be initialized"
+        help="the command to execute."
     )
-    parser_run = subparsers.add_parser(
-        "run",
-        help="initiate all tables in empty database",
+    parser_exec.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        required=True,
+        default='resources/config.yml',
+        help="path to config file included SRC/DEST"
     )
-
-    # parser_run.add_argument(
-    #     "--database",
-    #     "-d",
-    #     type=str,
-    #     required=True,
-    #     choices=['fms_db','basket_db','oms_db'],
-    #     help="database Name to be initialized"
-    # )
+    parser_connect.add_argument(
+        "--src",
+        "-s",
+        type=str,
+        required=True,
+        choices=['kafka','s3','postgres'],
+        help="the source you want this runtime to read from..."
+    )
+    parser_connect.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        required=True,
+        default='resources/config.yml',
+        help="path to config file included SRC/DEST"
+    )
     args = parser.parse_args()
-    if args.command == 'run':
-        test()
-    elif args.command == "init_db":
-        pass
+    if args.command == 'connect':
+        cnn = connect(args.src,args.config)
+        if args.src == 'kafka':
+            cnn.attach()
+    elif args.command == 'exec':
+        cnn = connect('s3',args.config)
+        output = cnn.exec(args.cmd).df()
+        print(output)
        
 
 if __name__ == "__main__":

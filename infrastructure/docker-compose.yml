@@ -30,7 +30,7 @@ services:
     container_name: minio
     ports:
       - ${MINIO_ADVERT_PORT:-9000}:9000
-      - ${MINIO_ADVERT_PORT:-9001}:9001
+      - ${MINIOCONSOLE_ADVERT_PORT:-9001}:9001
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-password}

@@ -48,6 +48,7 @@ class BrokerCnn(BaseModel):
     ingest_topics: list = []
     ingest_table: str
     group_id: str = ""
+    batch_size: int = 1000
     @computed_field
     @property
     def url(self) -> str:
@@ -55,11 +56,11 @@ class BrokerCnn(BaseModel):
     
 
 class SRC(BaseModel):
-    catalog: PgCnn
+    stream: BrokerCnn
     storage: StorageCnn
 
 class DEST(BaseModel):
-    stream: BrokerCnn
+    catalog: PgCnn
     storage: StorageCnn
 
 class Configs(BaseModel):
