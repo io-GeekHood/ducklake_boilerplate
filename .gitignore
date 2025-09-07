@@ -200,6 +200,7 @@ logs/
 .dev
 
 .production_envs
+resources/config.tmp.yml
 infrastructure/minio_data
 infrastructure/pgadmin_data
 infrastructure/pg_data

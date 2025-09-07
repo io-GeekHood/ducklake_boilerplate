@@ -58,7 +58,8 @@ class BrokerCnn(BaseModel):
 class SRC(BaseModel):
     stream: BrokerCnn
     storage: StorageCnn
-
+    postgres: PgCnn
+    
 class DEST(BaseModel):
     catalog: PgCnn
     storage: StorageCnn

@@ -72,7 +72,7 @@ def main():
         if args.src == 'kafka':
             cnn.attach()
     elif args.command == 'exec':
-        cnn = connect('s3',args.config)
+        cnn = connect('postgres',args.config)
         output = cnn.exec(args.cmd).df()
         print(output)
        
