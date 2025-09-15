@@ -34,7 +34,7 @@ class DuckLakeManager(Configs):
     def _get_dest_storage_secret(self):
         try:
             return (
-                "create secret ds (type s3, "
+                f"create secret {self.DEST.storage.lake_alias} (type s3, "
                 + f"key_id '{self.DEST.storage.access_key.get_secret_value()}', "
                 + f"secret '{self.DEST.storage.secret.get_secret_value()}', "
                 + f"endpoint '{self.DEST.storage.host}:{self.DEST.storage.port}', "
@@ -71,12 +71,12 @@ class DuckLakeManager(Configs):
                 + ");"
             )
         except Exception as fail:
-            logger.critical(f"cannot register src_pg {fail}")
+            logger.critical(f"cannot register {self.SRC.postgres.lake_alias} {fail}")
             return 'select 1;'
     def _get_src_s3_secret(self):
         try:
             return (
-                f"create secret src_s3 (type s3, "
+                f"create secret {self.SRC.storage.lake_alias} (type s3, "
                 + f"key_id '{self.SRC.storage.access_key.get_secret_value()}', "
                 + f"secret '{self.SRC.storage.secret.get_secret_value()}', "
                 + f"endpoint '{self.SRC.storage.host}:{self.SRC.storage.port}', "
@@ -86,7 +86,7 @@ class DuckLakeManager(Configs):
                 ");"
             )
         except Exception as fail:
-            logger.critical(f"cannot register src_s3 {fail}")
+            logger.critical(f"cannot register {self.SRC.storage.lake_alias} {fail}")
             return 'select 1;'
 
     def _attach(self):
@@ -173,7 +173,7 @@ class DuckLakeManager(Configs):
         logger.info("catalog connectivity test successfull")
 
     def __install_duckdb_extensions(
-        self, extensions: List = ["ducklake", "postgres", "httpfs"]
+        self, extensions: List = ["ducklake", "postgres", "httpfs","excel"]
     ) -> Optional[Exception]:
         for extension_name in extensions:
             try:
