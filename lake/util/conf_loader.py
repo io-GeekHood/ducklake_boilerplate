@@ -1,14 +1,14 @@
 import yaml
 from pydantic import BaseModel, ConfigDict, computed_field,SecretStr
 from typing import Literal,Union
-
+from typing import Optional, Union
 class PgCnn(BaseModel):
     host: str = "127.0.0.1"
     port: int = 5432
     username: SecretStr = ""
     password: SecretStr = ""
     database: str = "postgres"
-    lake_alias: str = "lake"
+    lake_alias: str = "pg_default"
     @computed_field
     @property
     def url(self) -> str:
@@ -23,6 +23,7 @@ class StorageCnn(BaseModel):
     region: str = "us-east-1"
     secure: bool = False
     style: str = Literal["path","vhs"]
+    lake_alias: str = "s3_default"
     @computed_field
     @property
     def get_address(self) -> str:
@@ -57,8 +58,8 @@ class BrokerCnn(BaseModel):
 
 class SRC(BaseModel):
     stream: BrokerCnn
-    storage: StorageCnn
-    postgres: PgCnn
+    storage: Optional[StorageCnn] = None
+    postgres: Optional[PgCnn] = None
     
 class DEST(BaseModel):
     catalog: PgCnn

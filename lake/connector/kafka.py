@@ -6,6 +6,8 @@ from collections.abc import Generator
 import json
 import pandas as pd
 from typing import Optional
+
+
 class Connector(DuckLakeManager):
 	bootstrap_servers: str = None
 	base_config: dict = None
@@ -13,6 +15,7 @@ class Connector(DuckLakeManager):
 	_consumers: list[Consumer] = []
 	def __init__(self,config_path):
 		super(Connector,self).__init__(config_path)
+		self.duckdb_connection.execute(f"use {self.DEST.catalog.lake_alias};")
 		"""Initialize the Kafka client."""
 		self.bootstrap_servers = self.SRC.stream.url
 		self.base_config = {"bootstrap.servers": self.bootstrap_servers}

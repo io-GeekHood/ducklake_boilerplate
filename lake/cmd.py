@@ -2,7 +2,7 @@ import argparse
 import os
 
 
-from lake.connector import connect
+from lake.connector import load
 
 
 def main():
@@ -26,52 +26,24 @@ def main():
         help="Available sub-commands",
         required=True, # Ensures a subcommand is always provided
     )
-    parser_travel = subparsers.add_parser(
-        "travel",
-        help="execute a custom command on lake",
-    )
-    parser_travel.add_argument(
-        "--condition",
-        "-x",
-        type=str,
-        required=True,
-        help="the last commit type to find."
-    )
-    parser_travel.add_argument(
-        "--table",
-        "-t",
-        type=str,
-        required=True,
-        help="the table name to commit snapshop on."
-    )
-    parser_travel.add_argument(
-        "--config",
-        "-c",
-        type=str,
-        required=True,
-        default='resources/config.yml',
-        help="path to config file included SRC/DEST"
-    )
-    parser_travel.add_argument(
-        "--src",
-        "-s",
-        type=str,
-        required=True,
-        choices=['kafka','s3','postgres'],
-        help="the source you want this runtime to read from..."
-    )
+
     parser_exec = subparsers.add_parser(
         "exec",
         help="execute a custom command on lake",
     )
     parser_exec.add_argument(
-        "--cmd",
-        "-x",
+        "--config",
+        "-c",
         type=str,
         required=True,
-        help="the command to execute."
+        default='resources/config.yml',
+        help="path to config file included SRC/DEST"
     )
-    parser_exec.add_argument(
+    parser_attach = subparsers.add_parser(
+        "attach",
+        help="attack ducklake to message broker",
+    )
+    parser_attach.add_argument(
         "--config",
         "-c",
         type=str,
@@ -84,41 +56,16 @@ def main():
         "-s",
         type=str,
         required=True,
-        choices=['kafka','s3','postgres'],
         help="the source you want this runtime to read from..."
-    )
-    parser_connect = subparsers.add_parser(
-        "connect",
-        help="create simple circuite to ducklake",
-    )
-    parser_connect.add_argument(
-        "--src",
-        "-s",
-        type=str,
-        required=True,
-        choices=['kafka','s3','postgres'],
-        help="the source you want this runtime to read from..."
-    )
-    parser_connect.add_argument(
-        "--config",
-        "-c",
-        type=str,
-        required=True,
-        default='resources/config.yml',
-        help="path to config file included SRC/DEST"
     )
     args = parser.parse_args()
-    if args.command == 'connect':
-        cnn = connect(args.src,args.config)
-        if args.src == 'kafka':
-            cnn.attach()
-    elif args.command == 'exec':
-        cnn = connect(args.src,args.config)
-        output = cnn.exec(args.cmd).df()
-        print(output)
-    elif args.command == 'travel':
-        cnn = connect(args.src,args.config)
-        pev_table_state = cnn.retrive_snapshot(args.condition,args.table)
-        print(pev_table_state)
+    if args.command == 'exec':
+        cnn = load(args.src,args.config)
+        cnn.deploy()
+    if args.command == 'attach':
+        cnn = load("kafka",args.config)
+        cnn.attach()
+
+
 if __name__ == "__main__":
     main()

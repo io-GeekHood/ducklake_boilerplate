@@ -64,7 +64,7 @@ That’s it. The tooling reads this config and does the rest.
 
 1) Open `./resources/config.yml`  
 2) Set your DEST (where the lake lives)  
-3) Pick a SRC (what you’re reading from)  
+3) Pick a SRC (what you’re reading from) / or leave it empty if you like!   
 4) Install deps:
 
 The config file (resources/config.yml) 
@@ -91,7 +91,7 @@ ducklake requires you to specify a data location while
      
 In short:
 
-* catalog = metadata database (e.g., Postgres)
+* catalog = metadata database (e.g., Postgres) 
 * storage = object store for data (e.g., MinIO/S3)    
 
 
@@ -104,7 +104,7 @@ SRC defines the upstream source you want to pull from to build the lake. You can
 * postgres (a relational DB)
     
 
-Pick what fits your use case. Comment out what you don’t need. 
+you should be able to define all of them and attach to each one as demand by running ('use {lake_alias}') inside your custom deploy() definition runtime
 
 
 ![hld](resources/asset/lake.png)
@@ -130,13 +130,14 @@ SRC:
     style: path # you can choose either vhs(for aws) or path 
     access_key: minio # s3fs access key
     secret: password # s3fs secret key
+    lake_alias: my_src_s3 # the alias to use connection (using {lake_alias}; select * from ...;) 
   postgres:
     host: 127.0.0.1 # data included postgres that you want to read from
     port: 5432 # data included postgres port
     database: postgres # target database to invoke queries on
     username: pgadmin # postgres username
     password: password # postgres password
-    lake_alias: lake # alias to call when you want to connect your pg database (using {lake_alias}; select * from ...;) 
+    lake_alias: my_src_pg # the alias to use this connection (using {lake_alias}; select * from ...;) 
 DEST: # all fields similar to SRC
   catalog:
     host: 127.0.0.1
@@ -144,7 +145,7 @@ DEST: # all fields similar to SRC
     database: postgres
     username: pgadmin
     password: password
-    lake_alias: lake
+    lake_alias: lake # the alias to use when you want to query on core datalake (using {lake_alias}; select * from ...;) 
   storage:
     host: 127.0.0.1
     port: 9000
@@ -154,6 +155,7 @@ DEST: # all fields similar to SRC
     style: path
     access_key: minio
     secret: password
+    lake_alias: dest_s3_secret # this alias is only used to ceate an s3 secret for ducklake initiation (the lake will then be able to resolve scope using read_parquet('s3://{scope}/my_file.parquet');) 
 ```
  
 $`\textcolor{green}{\text{Note}}`$ \
@@ -178,30 +180,64 @@ After a successful installation, you should be able to invoke the CLI:
 ```bash
 lake --help 
 ```
-Start a connection (example: Kafka) using your configuration: 
+Start running your custom code using your configuration: 
 
 ```bash
-lake connect --src kafka --config resources/config.yml 
+lake exec --src personal --config resources/config.yml 
 Aliases: -s for --src, -c for --config 
 ```
+This can be used to run any custom BI analysis task on enabled data
 
-This initializes and attaches the runtime to the Kafka batch ingestion consumer defined in your config. 
 
-| To inspect ingested data, run a query: 
+You can get attached to the stream you have defined to ingest incoming data by
+```bash
+lake attach --config resources/config.yml 
+Aliases: -c for --config 
+```
+
+## Usage
+
+### this section is still under development
+
+
+To learn how to utilize the `Connector` class, navigate to the example file located at `lake/connector/personal.py`. Below is a sample implementation:
+
+```python
+class Connector(DuckLakeManager):
+    def __init__(self, config_path):
+        super().__init__(config_path)
+
+
+    def deploy(self):
+        # Connect to your storage source
+        self.duckdb_connection.execute(f"use {self.SRC.storage.lake_alias};")
+        read_from_src_storage = "SELECT _from read_parquet('s3://big_parquets_bucket/logs_2024-09-_.parquet')"
+        result = self.duckdb_connection.execute(read_from_src_storage)
+        print(result.df())
+
+        # Connect to your PostgreSQL source
+        self.duckdb_connection.execute(f"use {self.SRC.postgres.lake_alias};")
+        read_from_src_pg = "SELECT * FROM public.my_table_in_src LIMIT 100;"
+        result = self.duckdb_connection.execute(read_from_src_pg)
+        print(result.df())
+
+        # Connect to your DuckLake
+        self.duckdb_connection.execute(f"use {self.DEST.catalog.lake_alias};")
+        read_from_ducklake = "SELECT * FROM stream_table;"
+        result = self.duckdb_connection.sql(read_from_ducklake)
+        print(result.df())
+
+        return plot
+
+
+Members of your data analysis team can customize the deploy method to return a Matplotlib plot, which can be used to register their own dashboard on the Dashboards page. This codebase is designed to make the Python module you create under ./lake/connectors/{the_name}.py available when executing the following command
 
 ```bash
-lake exec --cmd 'SELECT * FROM kafka_test' --config resources/config.yml 
-Alias: -x for --cmd 
+lake exec --src {the_name} --config resources/config.yml
 ```
-* Note: kafka_test should match the ingest_table value in your config file. 
+This can be used to run any custom BI analysis task on enabled data
 
 
-| To use timetravel you can run:
-```bash
-lake travel --config resources/config.tmp.yml --src s3 --table my_custom_table --condition tables_deleted_from
-Aliases: -x for --condition , -t for table
-```
-this will return table content in previouse state of last deletion transaction you can also choose 'tables_inserted_into' as condition
 
 
 
