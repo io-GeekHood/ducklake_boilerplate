@@ -3,7 +3,7 @@ import os
 
 
 from lake.connector import load
-
+import panel as pn
 
 def main():
     """
