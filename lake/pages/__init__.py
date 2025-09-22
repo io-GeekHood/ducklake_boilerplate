@@ -3,7 +3,7 @@ import sys
 from typing import Literal, cast,Union
 from . import *
 
-def load(servicer:str,config_path:str):
+def load_page(servicer:str,config_path:str):
     try:
         module = importlib.import_module(f".{servicer}", package=__name__)
         return module.Connector(config_path)

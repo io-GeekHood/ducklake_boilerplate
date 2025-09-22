@@ -1,6 +1,6 @@
 import argparse
 import os
-from lake.pages import load
+from lake.connector import load_connector
 from lake.render import serve
 
 def main():
@@ -36,18 +36,6 @@ def main():
         default='resources/config.yml',
         help="path to config file included SRC/DEST"
     )
-    parser_exec = subparsers.add_parser(
-        "exec",
-        help="execute a custom command on lake",
-    )
-    parser_exec.add_argument(
-        "--config",
-        "-c",
-        type=str,
-        required=True,
-        default='resources/config.yml',
-        help="path to config file included SRC/DEST"
-    )
     parser_attach = subparsers.add_parser(
         "attach",
         help="attack ducklake to message broker",
@@ -60,18 +48,9 @@ def main():
         default='resources/config.yml',
         help="path to config file included SRC/DEST"
     )
-    parser_exec.add_argument(
-        "--src",
-        "-s",
-        type=str,
-        required=True,
-        help="the source you want this runtime to read from..."
-    )
     args = parser.parse_args()
-    if args.command == 'exec':
-        cnn = load(args.src,args.config)
     if args.command == 'attach':
-        cnn = load("kafka",args.config)
+        cnn = load_connector("kafka",args.config)
         cnn.attach()
     if args.command == 'serve':
         serve()

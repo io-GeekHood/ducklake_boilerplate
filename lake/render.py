@@ -2,7 +2,7 @@ import panel as pn
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from lake.pages import load
+from lake.pages import load_page
 ignore = ['__pycache__','__init__.py']
 available_modules = [filename.replace('.py','') for filename in os.listdir('./lake/pages/') if filename not in ignore]
 
@@ -14,7 +14,7 @@ pn.extension('ipywidgets')
 def render_dashboard(module_name):
     """Render the dashboard with the given name."""
     print(f"LOADING MODULE {module_name}")
-    instance = load(module_name,'resources/config.tmp.yml')
+    instance = load_page(module_name,'resources/config.tmp.yml')
     plot = instance.deploy()
     dashboard = pn.Column(pn.pane.Matplotlib(plot, tight=True), width=600)
     return dashboard
@@ -32,7 +32,7 @@ def view_dashboard(event):
 
 # Initial dashboard
 dashboard_panel = pn.Column(dashboards[sidebar.value])
-print("PANEL VALUES IS",dashboard_panel)
+print("PANEL VALUES",dashboard_panel)
 print("SIDEBAR",sidebar)
 layout = pn.Row(sidebar, dashboard_panel,height=600, width_policy='max')
 
