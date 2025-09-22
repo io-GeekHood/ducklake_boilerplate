@@ -22,15 +22,13 @@ class Connector(DuckLakeManager):
         # print(result.df())
 
         # connect to your storage src (no need to call use {alias} command since ducklake automatically detects from scope)
-        read_from_src_storage = f"select * from read_parquet('s3://{self.SRC.storage.scope}/logs_2024-09-20T00-20.parquet')"
+        read_from_src_storage = f"select count(request_id) as num_requests,remote_ip as address from read_parquet('s3://{self.SRC.storage.scope}/logs_2024-09-20T00-05.parquet') \
+            group by remote_ip;"
         result = self.duckdb_connection.execute(read_from_src_storage)
-        print(result.df().columns)
-
-        plt.figure(figsize=(6, 4))
-        data = np.random.randn(100).cumsum()
-        plt.plot(data)
-        plt.title(__file__)
-        plt.xlabel("Index")
-        plt.ylabel("Value")
+        df = result.df()
+        df.plot(kind = 'bar', x = 'address', y = 'num_requests')
+        plt.title(__file__.split('/')[-1])
+        plt.xlabel("ip_address")
+        plt.ylabel("requests")
         plt.grid()
         return plt.gcf()

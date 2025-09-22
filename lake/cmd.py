@@ -1,17 +1,15 @@
 import argparse
 import os
-
-
-from lake.connector import load
-import panel as pn
+from lake.pages import load
+from lake.render import serve
 
 def main():
     """
     Main function to set up and parse command-line arguments.
     """
     parser = argparse.ArgumentParser(
-        prog="validator",  # The name of your CLI tool
-        description="Agent - Agent cli runner",
+        prog="integrator(lake)",  # The name of your CLI tool
+        description="Ducklake(DataLake) + Bi Dashboards(Panel)",
     )
     parser.add_argument(
         "--version",
@@ -26,7 +24,18 @@ def main():
         help="Available sub-commands",
         required=True, # Ensures a subcommand is always provided
     )
-
+    parser_serve = subparsers.add_parser(
+        "serve",
+        help="execute a custom command on lake",
+    )
+    parser_serve.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        required=True,
+        default='resources/config.yml',
+        help="path to config file included SRC/DEST"
+    )
     parser_exec = subparsers.add_parser(
         "exec",
         help="execute a custom command on lake",
@@ -61,10 +70,12 @@ def main():
     args = parser.parse_args()
     if args.command == 'exec':
         cnn = load(args.src,args.config)
-        cnn.deploy()
     if args.command == 'attach':
         cnn = load("kafka",args.config)
         cnn.attach()
+    if args.command == 'serve':
+        serve()
+
 
 
 if __name__ == "__main__":

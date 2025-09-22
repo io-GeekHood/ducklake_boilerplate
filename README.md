@@ -204,38 +204,57 @@ To learn how to utilize the `Connector` class, navigate to the example file loca
 
 ```python
 class Connector(DuckLakeManager):
-    def __init__(self, config_path):
-        super().__init__(config_path)
-
-
+    def __init__(self,config_path):
+        super(Connector,self).__init__(config_path)
+        
     def deploy(self):
-        # Connect to your storage source
-        self.duckdb_connection.execute(f"use {self.SRC.storage.lake_alias};")
-        read_from_src_storage = "SELECT _from read_parquet('s3://big_parquets_bucket/logs_2024-09-_.parquet')"
-        result = self.duckdb_connection.execute(read_from_src_storage)
+        # connect to your ducklake
+        self.duckdb_connection.execute(f"use {self.DEST.catalog.lake_alias};")
+        read_from_ducklake = "select * from kafka_content;" # the value defined in stream.ingest_table 
+        result = self.duckdb_connection.execute(read_from_ducklake)
         print(result.df())
 
-        # Connect to your PostgreSQL source
+        # # connect to your postgres src
         self.duckdb_connection.execute(f"use {self.SRC.postgres.lake_alias};")
-        read_from_src_pg = "SELECT * FROM public.my_table_in_src LIMIT 100;"
+        read_from_src_pg = "select * from public.my_table_in_src limit 100 ;"
         result = self.duckdb_connection.execute(read_from_src_pg)
         print(result.df())
 
-        # Connect to your DuckLake
-        self.duckdb_connection.execute(f"use {self.DEST.catalog.lake_alias};")
-        read_from_ducklake = "SELECT * FROM stream_table;"
-        result = self.duckdb_connection.sql(read_from_ducklake)
+        # connect to your storage src (no need to call use {alias} command since ducklake automatically detects from scope)
+        read_from_src_storage = f"select count(request_id) as num_requests,remote_ip as address from read_parquet('s3://{self.SRC.storage.scope}/my_cool_parquet.parquet') \
+            group by remote_ip;"
+        result = self.duckdb_connection.execute(read_from_src_storage)
         print(result.df())
 
-        return plot
+        # create any plot inside this code-block and return it
+        # df = result.df()
+        # df.plot(kind = 'bar', x = 'address', y = 'num_requests')
+        # plt.title(__file__.split('/')[-1])
+        # plt.xlabel("ip_address")
+        # plt.ylabel("requests")
+        # plt.grid()
+        # return current figure after modification
+        return plt.gcf()
+
+```
 
 
-Members of your data analysis team can customize the deploy method to return a Matplotlib plot, which can be used to register their own dashboard on the Dashboards page. This codebase is designed to make the Python module you create under ./lake/connectors/{the_name}.py available when executing the following command
+you can run this to start panel service that renders every available module inside ./lake/pages/{panel_name}.py
 
+Members of your data analysis team can customize the deploy method to return a Matplotlib plot, which can be used to register their own dashboard on the Dashboards page. This codebase is designed to make the Python module you create under ./lake/connectors/{the_name}.py available when executing the following command.
+
+```bash
+lake serve --config resources/config.yml
+```
+
+
+
+- to execute some custom code inside cmd-exec section you can run the following command.
 ```bash
 lake exec --src {the_name} --config resources/config.yml
 ```
-This can be used to run any custom BI analysis task on enabled data
+
+by default its simply connecting your lake engine and does nothing!
 
 
 
