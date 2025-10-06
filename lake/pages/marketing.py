@@ -25,7 +25,7 @@ class Connector(DuckLakeManager):
         read_from_src_storage = f"select count(request_id) as num_requests,remote_ip as address from read_parquet('s3://{self.SRC.storage.scope}/logs_2024-09-20T00-20.parquet') \
             group by remote_ip;"
         result = self.duckdb_connection.execute(read_from_src_storage)
-        print(result.df())
+        # print(result.df())
 
         # create any plot inside this code-block and return it
         df = result.df()
